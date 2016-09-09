@@ -1,0 +1,87 @@
+---
+- name: Add ubuntu to www-data group 
+  user: name=ubuntu groups=www-data append=yes
+
+- name: Install nginx
+  apt: name=nginx state=latest
+
+- name: Copy /etc/nginx/nginx.conf config
+  copy: src=etc/nginx/nginx.conf dest=/etc/nginx/nginx.conf owner=root group=root mode=0644
+  notify: restart nginx
+
+- name: Copy nginx site configs
+  template: src=etc/nginx/sites-available/site-nginx.j2 dest=/etc/nginx/sites-available/{{ item.domain }} owner=www-data
+  with_items: sites
+  notify: restart nginx
+
+- name: Symlink nginx site configs to /etc/nginx/sites-enabled/
+  action: file src=/etc/nginx/sites-available/{{ item.domain }} dest=/etc/nginx/sites-enabled/{{ item.domain }} state=link owner=www-data
+  with_items: sites
+
+- name: Install memcached
+  apt: name=memcached state=latest
+
+- name: Copy /etc/memcached.conf config
+  copy: src=etc/memcached.conf dest=/etc/memcached.conf
+
+- name: Install git
+  apt: name=git state=latest
+
+- name: Install php-fpm
+  apt: name=php5-fpm state=present
+
+- name: Copy php-fpm configuration
+  template: src=etc/php5/fpm/pool.d/site-fpm.j2 dest=/etc/php5/fpm/pool.d/{{ item.project_name }}.conf
+  with_items: sites
+  notify: restart php5-fpm
+
+# Set mysql root password before installing mysql, as there's no password prompt when installing through ansible
+- name: Set MySQL root password before installing
+  debconf: name='mysql-server' question='mysql-server/root_password' value='{{ mysql_root_pass | quote }}' vtype='password'
+
+- name: Confirm MySQL root password before installing
+  debconf: name='mysql-server' question='mysql-server/root_password_again' value='{{ mysql_root_pass | quote }}' vtype='password'
+
+- name: Install Mysql packages
+  apt: name={{ item }} state=latest
+  with_items:
+   - mysql-client
+   - mysql-server
+
+- name: Create Mysql configuration file for root user
+  template: src=my.cnf.j2 dest=/root/.my.cnf
+  notify:
+  - restart mysql
+
+- name: Install php5-mysql package
+  apt: name=php5-mysql state=latest
+
+- name: Install python-pip package
+  apt: name=python-pip state=latest
+
+- name: Install libmysqlclient-dev package
+  apt: name=libmysqlclient-dev state=latest
+
+- name: Install python-dev package
+  apt: name=python-dev state=latest
+
+- name: Install Mysql-python
+  pip: name=MySQL-python
+
+- name: Start Mysql Service
+  service: name=mysql state=started enabled=yes
+
+- name: Create WordPress databases
+  mysql_db: name={{ item.db_name }} state=present
+  with_items: sites
+
+- name: Create WordPress database users
+  mysql_user: name={{ item.db_user }} password={{ item.db_password }} priv={{ item.db_name }}.*:ALL host='localhost' state=present
+  with_items: sites
+
+- name: Change ownership of WordPress directories to www-data
+  file: path=/srv/{{ item.project_name }}/ owner=ubuntu group=www-data mode=0755 state=directory recurse=yes
+  with_items: sites
+
+- name: Start php5-fpm Service
+  service: name=php5-fpm state=started enabled=yes

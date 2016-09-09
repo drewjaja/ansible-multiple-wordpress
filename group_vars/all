@@ -1,0 +1,19 @@
+---
+mysql_root_pass: yourrootpass 
+mysql_port: 3306
+
+sites:
+  - project_name: site1
+    domain: site1.com
+    domain_prepend_www: yes
+    repository: https://github.com/me/site1.git
+    db_name: site1db
+    db_user: site1user
+    db_password: site1pass
+  - project_name: site2
+    domain: site2.com
+    domain_prepend_www: yes
+    repository: https://github.com/me/site2.git
+    db_name: site2db
+    db_user: site2user
+    db_password: site2pass

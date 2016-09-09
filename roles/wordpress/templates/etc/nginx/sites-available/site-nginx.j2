@@ -1,0 +1,51 @@
+server {
+	listen   80;
+
+{% if item.domain_prepend_www %}
+	server_name  {{ item.domain }};
+	rewrite ^(.*) http://www.{{ item.domain }}$1 permanent;
+{% else %}
+	server_name  www.{{ item.domain }};
+	rewrite ^(.*) http://{{ item.domain }}$1 permanent;
+{% endif %}
+}
+
+
+server {
+        listen       80;
+
+{% if item.domain_prepend_www %}
+	server_name www.{{ item.domain }}; 
+{% else %}
+	server_name {{ item.domain }};
+{% endif %}
+
+        root /srv/{{ item.project_name }}/ ;
+ 
+	client_max_body_size 64M;
+
+	access_log  /var/log/nginx/{{ item.domain }}.access.log;
+ 
+	# Deny access to any files with a .php extension in the uploads directory
+        location ~* /(?:uploads|files)/.*\.php$ {
+                deny all;
+        }
+ 
+        location / {
+                index index.php index.html index.htm;
+                try_files $uri $uri/ /index.php?$args;
+        }
+ 
+        location ~* \.(gif|jpg|jpeg|png|css|js)$ {
+                expires max;
+        }
+ 
+        location ~ \.php$ {
+                try_files $uri =404;
+                fastcgi_split_path_info ^(.+\.php)(/.+)$;
+                fastcgi_index index.php;
+                fastcgi_pass unix:/var/run/{{ item.project_name }}.sock;
+                fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+                include fastcgi_params;
+        }
+}
